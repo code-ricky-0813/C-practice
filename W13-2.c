@@ -1,0 +1,229 @@
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef char Str40[40];
+typedef char Str24[24];
+typedef char Str9[9];
+
+typedef struct {
+    bool non_negative;
+    int decimal;
+    int int_of_fraction;
+    int num_digits;
+} FloatInfo;
+
+FloatInfo FractionStrAnalysis(Str40 float_str) {
+    FloatInfo info;
+    int i = 0, j = 0;
+
+    if (float_str[0] == '-') {
+        info.non_negative = false;
+        i = 1;
+    } else {
+        info.non_negative = true;
+        i = 0;
+    }
+
+    Str40 integer_part = "";
+    Str40 fraction_part = "";
+    Str40 temp = "";
+
+    while (float_str[i] != '\0' && float_str[i] != '.') {
+        integer_part[j++] = float_str[i++];
+    }
+
+    integer_part[j] = '\0';
+
+    if (float_str[i] == '.') {
+        i++;
+        j = 0;
+
+        while (float_str[i] != '\0') {
+            temp[j++] = float_str[i++];
+        }
+
+        temp[j] = '\0';
+        info.decimal = atoi(integer_part);
+        info.num_digits = strlen(temp);
+
+        int k = 0;
+
+        while (temp[k] == '0' && temp[k] != '\0') {
+            k++;
+        }
+
+        int m = 0;
+
+        while (temp[k] != '\0') {
+            fraction_part[m++] = temp[k++];
+        }
+
+        fraction_part[m] = '\0';
+        info.int_of_fraction = atoi(fraction_part);
+
+        if (m == 0) {
+            info.int_of_fraction = 0;
+        }
+    } else {
+        info.decimal = atoi(integer_part);
+        info.num_digits = 0;
+    }
+
+    return info;
+}
+
+void DecimalToBinary(int input_num, Str40 output_num) {
+    if (input_num == 0) {
+        strcpy(output_num, "0");
+        return;
+    }
+
+    Str40 temp;
+    int index = 0;
+
+    while (input_num > 0) {
+        temp[index++] = (input_num % 2) + '0';
+        input_num /= 2;
+    }
+
+    for (int i = 0; i < index; i++) {
+        output_num[i] = temp[index - 1 - i];
+    }
+
+    output_num[index] = '\0';
+
+}
+
+void FractionToBinary(int int_of_fraction, int num_digits, Str40 output_bin) {
+    int count = 0;
+    int digit = 1;
+
+    for (int i = 0; i < num_digits; i++) {
+        digit *= 10;
+    }
+
+    double fraction = int_of_fraction / (double)digit;
+
+    while (fraction > 0 && count < 10) {
+        fraction *= 2;
+
+        if (fraction >= 1.0) {
+            output_bin[count] = '1';
+            fraction -= 1.0;
+        } else {
+            output_bin[count] = '0';
+        }
+
+        count++;
+    }
+
+    output_bin[count] = '\0';
+}
+
+int FindMantissaExponent(Str40 input_decimal, Str40 input_fraction,
+    Str24 mantissa) {
+    int decimal_length = strlen(input_decimal);
+    int fraction_length = strlen(input_fraction);
+    
+    int first_one_index = -1;
+
+    for (int i = 0; i < decimal_length; i++) {
+        if (input_decimal[i] == '1') {
+            first_one_index = i;
+            break;
+        }
+    }
+
+    if (first_one_index == -1) {
+        for (int i = 0; i < fraction_length; i++) {
+            if (input_fraction[i] == '1') {
+                first_one_index = decimal_length + i;
+                break;
+            }
+        }
+    }
+
+    if (first_one_index == -1) {
+        for (int i = 0; i < 23; i++) {
+            mantissa[i] = '0';
+        }
+
+        mantissa[23] = '\0';
+        return 0;
+    }
+
+    int exponent = 0;
+    if (first_one_index < decimal_length) {
+        exponent = decimal_length - 1 - first_one_index;
+    } else {
+        exponent = -(first_one_index - decimal_length + 1);
+    }
+
+    int mantissa_index = 0;
+    int position = first_one_index + 1;
+
+    while (mantissa_index < 23) {
+        if (position < decimal_length) {
+            mantissa[mantissa_index++] = input_decimal[position++];
+        } else if (position - decimal_length < fraction_length) {
+            mantissa[mantissa_index++] = input_fraction[position - decimal_length];
+            position++;
+        } else {
+            mantissa[mantissa_index++] = '0';
+        }
+    }
+
+    mantissa[mantissa_index] = '\0';
+
+    return exponent;
+}
+
+void DecimalToExcess127(int exponent, Str9 excess127) {
+    int excess_value = exponent + 127;
+    int index = 0;
+
+    while (excess_value > 0) {
+        excess127[index++] = (excess_value % 2) + '0';
+        excess_value /= 2;
+    }
+
+    while (index < 8) {
+        excess127[index++] = '0';
+    }
+
+    for (int i = 0; i < index / 2; i++) {
+        char temp = excess127[i];
+        excess127[i] = excess127[index - 1 - i];
+        excess127[index - 1 - i] = temp;
+    }
+
+    excess127[index] = '\0';
+}
+
+int main() {
+    Str40 input_string = "";
+    scanf("%s", input_string);
+
+    FloatInfo info = FractionStrAnalysis(input_string);
+
+    Str40 binary_decimal = "";
+    Str40 binary_fraction = "";
+    Str24 mantissa = "";
+    Str9 excess127 = "";
+    int exponent = 0;
+
+    DecimalToBinary(info.decimal, binary_decimal);
+    FractionToBinary(info.int_of_fraction, info.num_digits, binary_fraction);
+    exponent = FindMantissaExponent(binary_decimal, binary_fraction, mantissa);
+
+    if (info.decimal == 0 && info.int_of_fraction == 0) {
+        printf("%d 00000000 00000000000000000000000", !info.non_negative);
+    } else {
+        DecimalToExcess127(exponent, excess127);
+        printf("%d %s %s", !info.non_negative, excess127, mantissa);
+    }
+
+    return 0;
+}
